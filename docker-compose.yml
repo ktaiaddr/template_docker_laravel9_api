@@ -1,0 +1,141 @@
+version: '3'
+
+volumes:
+  db_volume:
+
+services:
+
+  db:
+    image: mysql:8.0.23
+    environment:
+      - MYSQL_DATABASE=laravel9_sample_pj_db
+      - MYSQL_USER=u
+      - MYSQL_PASSWORD=p
+      - MYSQL_ROOT_PASSWORD=p
+      - TZ=Asia/Tokyo
+      - BIND-ADDRESS=0.0.0.0
+    volumes:
+      - db_volume:/var/lib/mysql
+    ports:
+      - "${WEB_IP}:33306:3306"
+    tty: true
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_bin
+      --sql-mode=NO_ENGINE_SUBSTITUTION
+      --default-authentication-plugin=mysql_native_password
+      --local-infile=1
+
+
+  web:
+    image: php:8.1-apache-buster
+#    image: php:7.3.27-apache-buster
+    ports:
+      - "${WEB_IP}:443:443"
+    volumes:
+      - ./:/var/www/html/
+      - ./docker_config/web/web.conf:/etc/apache2/sites-available/web.conf
+      - ./docker_config/web/ssl/ssl.crt:${SSLCertificateFile}
+      - ./docker_config/web/ssl/ssl.key:${SSLCertificateKeyFile}
+    environment:
+      - TZ=Asia/Tokyo
+    working_dir: /var/www/html/
+    tty: true
+    env_file:
+      - ./.env
+    entrypoint: /bin/bash
+    command: >
+      -c "
+      #######################################################################
+      #update
+      #######################################################################
+        apt-get update;
+        apt-get install -y libzip-dev;
+      
+      #######################################################################
+      #php拡張インストール
+      #######################################################################
+        docker-php-ext-install zip;
+        docker-php-ext-install pdo_mysql mysqli;
+      
+      #######################################################################
+      #xdebugインストール
+      #######################################################################
+        pecl install xdebug && docker-php-ext-enable xdebug;
+      
+      #######################################################################
+      #www-dataユーザの削除、再作成（ローカルユーザIDと合わせる）
+      #######################################################################
+        userdel -r www-data;
+        groupadd -g ${LOCALGID} www-data;
+        useradd -M -u ${LOCALUID} -g ${LOCALGID} -s /sbin/nologin www-data;
+      
+      #######################################################################
+      #apacheモジュールの有効化
+      #######################################################################
+        a2enmod ssl;
+        a2enmod rewrite;
+      a2enmod proxy;
+      a2enmod proxy_http;
+       a2enmod substitute;
+      #######################################################################
+      #apacheサイトの有効化
+      #######################################################################
+        a2ensite ssl;
+        a2ensite web;
+      
+      #######################################################################
+      #apacheデフォルトサイトの無効化      
+      #######################################################################
+        a2dissite 000-default;
+      
+      #######################################################################
+      #php.iniのコピー
+      #######################################################################
+        cp /usr/local/etc/php/php.ini-development /usr/local/etc/php/php.ini;
+      
+      #######################################################################
+      #php.iniのメモリリミットの拡張
+      #######################################################################
+        sed -i.bk -e 's/memory_limit = 128M/memory_limit = 8192M/gi' /usr/local/etc/php/php.ini ;
+      
+      #######################################################################
+      #apacheコンフィグテスト
+      #######################################################################
+        apachectl configtest;
+
+      #######################################################################
+      #composerのインストール
+      #######################################################################
+       #curl -sS https://getcomposer.org/installer | php -- --version=2.1.14 ;
+        curl -sS https://getcomposer.org/installer | php ;
+        mv composer.phar /usr/local/bin/composer ;
+        composer -v;
+      
+      #######################################################################
+      #xdebugの有効化
+      #######################################################################
+        echo '#コメントアウト' > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini ;
+        echo '#extension=xdebug' >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini ;
+        echo 'zend_extension=xdebug.so' >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini ;
+        echo 'xdebug.mode=coverage' >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini;
+      
+      #######################################################################
+      #apacheの起動
+      #######################################################################
+      #echo 'LoadModule proxy_module modules/mod_proxy.so' >> /usr/local/apache2/conf/httpd.conf ;
+      #echo 'LoadModule proxy_http_module modules/mod_proxy_http.so' >> /usr/local/apache2/conf/httpd.conf ;
+
+      #######################################################################
+      #apacheの起動
+      #######################################################################
+        apache2-foreground
+      "
+
+
+  mailhog:
+    image: "mailhog/mailhog"
+    ports:
+      - "${WEB_IP}:8025:8025"
+    tty: true
+
