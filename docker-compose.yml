@@ -33,15 +33,10 @@ services:
       - "443:443"
     volumes:
       - ./:/var/www/html/
-      - ./docker_config/web/web.conf:/etc/apache2/sites-available/web.conf
-      - ./docker_config/web/ssl/ssl.crt:${SSLCertificateFile}
-      - ./docker_config/web/ssl/ssl.key:${SSLCertificateKeyFile}
     environment:
       - TZ=Asia/Tokyo
     working_dir: /var/www/html/
     tty: true
-    env_file:
-      - ./.env
 
   mailhog:
     image: "mailhog/mailhog"
