@@ -3,7 +3,7 @@
 #以下を参照
 #https://qiita.com/ukei2021/items/9fd5a46253f0a43f7ddb
 
-DIR=$(dirname $(realpath $0))
+DIR=$(cd $(dirname $0);pwd -P)
 
 SSL_FILES_DIR=${DIR}/ssl
 mkdir ${SSL_FILES_DIR}
